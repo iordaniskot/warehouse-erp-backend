@@ -58,6 +58,32 @@ router.get('/', ProductController.list);
 
 /**
  * @swagger
+ * /products/generate-barcode:
+ *   get:
+ *     summary: Generate a unique product barcode
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Barcode generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     barcode:
+ *                       type: string
+ */
+router.get('/generate-barcode', ProductController.generateBarcode);
+
+/**
+ * @swagger
  * /products:
  *   post:
  *     summary: Create a new product

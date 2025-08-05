@@ -54,6 +54,8 @@ export const createProductSchema = z.object({
   description: z.string().max(1000).optional(),
   categoryId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid category ID').optional(),
   brand: z.string().max(100).optional(),
+  barcode: z.string().optional(),
+  price: z.number().min(0).optional(),
   skus: z.array(skuSchema).min(1, 'At least one SKU is required'),
   tags: z.array(z.string()).default([]),
   images: z.array(z.string().url()).default([]),

@@ -43,6 +43,8 @@ export interface IProduct extends Document {
   description?: string;
   categoryId?: mongoose.Types.ObjectId;
   brand?: string;
+  barcode?: string;
+  price?: number;
   skus: ISKU[];
   tags: string[];
   images: string[];
@@ -181,6 +183,18 @@ const productSchema = new Schema<IProduct>({
     trim: true,
     maxlength: 100
   },
+  barcode: {
+    type: String,
+    trim: true,
+    unique: true,
+    sparse: true, // Allows multiple null values but unique non-null values
+    index: true
+  },
+  price: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
   skus: {
     type: [skuSchema],
     required: true,
@@ -209,6 +223,7 @@ const productSchema = new Schema<IProduct>({
 });
 
 // Indexes for performance (as specified in PRD)
+productSchema.index({ barcode: 1 }, { unique: true, sparse: true });
 productSchema.index({ 'skus.skuCode': 1 }, { unique: true });
 productSchema.index({ 'skus.barcode': 1 }, { sparse: true });
 productSchema.index({ 'skus.vendors.vendorId': 1 });
@@ -225,12 +240,13 @@ productSchema.pre<IProduct>('save', async function(next) {
       if (!sku.skuCode) {
         // Generate SKU code: PROD-{productId}-{timestamp}
         const timestamp = Date.now().toString().slice(-6);
-        sku.skuCode = `PROD-${this._id.toString().slice(-6).toUpperCase()}-${timestamp}`;
+        const productId = this._id ? this._id.toString().slice(-6).toUpperCase() : 'NEW';
+        sku.skuCode = `PROD-${productId}-${timestamp}`;
       }
     }
     next();
   } catch (error) {
-    next(error as Error);
+    next(error instanceof Error ? error : new Error(String(error)));
   }
 });
 

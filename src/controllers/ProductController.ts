@@ -11,6 +11,45 @@ import {
 import { logger } from '@/utils/logger';
 
 export class ProductController {
+  // Utility function to generate unique barcode
+  private static async generateUniqueBarcode(): Promise<string> {
+    let barcode: string;
+    let isUnique = false;
+    
+    while (!isUnique) {
+      // Generate a 12-digit barcode (UPC-A format without check digit)
+      const timestamp = Date.now().toString();
+      const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+      barcode = (timestamp.slice(-8) + random).slice(0, 12);
+      
+      // Check if barcode already exists
+      const existing = await Product.findOne({ barcode });
+      if (!existing) {
+        isUnique = true;
+      }
+    }
+    
+    return barcode!;
+  }
+
+  // Endpoint to generate a new barcode
+  static async generateBarcode(_req: Request, res: Response<ApiResponse>): Promise<void> {
+    try {
+      const barcode = await ProductController.generateUniqueBarcode();
+      
+      res.json({
+        success: true,
+        data: { barcode }
+      });
+    } catch (error) {
+      logger.error('Generate barcode error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to generate barcode'
+      });
+    }
+  }
+
   static async create(req: Request, res: Response<ApiResponse>): Promise<void> {
     try {
       const validation = createProductSchema.safeParse(req.body);
@@ -37,6 +76,21 @@ export class ProductController {
           res.status(409).json({
             success: false,
             message: 'One or more SKU codes already exist'
+          });
+          return;
+        }
+      }
+
+      // Check for duplicate product barcode
+      if (productData.barcode) {
+        const existingProductWithBarcode = await Product.findOne({
+          barcode: productData.barcode
+        });
+        
+        if (existingProductWithBarcode) {
+          res.status(409).json({
+            success: false,
+            message: 'Product barcode already exists'
           });
           return;
         }
@@ -399,9 +453,23 @@ export class ProductController {
     try {
       const { barcode } = req.params;
       
-      const product = await Product.findOne({
-        'skus.barcode': barcode
+      // First try to find by product-level barcode
+      let product = await Product.findOne({
+        barcode: barcode
       }).populate('categoryId', 'name');
+      
+      let sku = null;
+      
+      // If not found at product level, search in SKU barcodes
+      if (!product) {
+        product = await Product.findOne({
+          'skus.barcode': barcode
+        }).populate('categoryId', 'name');
+        
+        if (product) {
+          sku = product.skus.find(s => s.barcode === barcode);
+        }
+      }
       
       if (!product) {
         res.status(404).json({
@@ -410,14 +478,12 @@ export class ProductController {
         });
         return;
       }
-
-      const sku = product.skus.find(s => s.barcode === barcode);
       
       res.json({
         success: true,
         data: {
           product,
-          sku
+          sku // Will be null if barcode was found at product level
         }
       });
     } catch (error) {
